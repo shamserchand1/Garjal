@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>StorySync: Clear Vision</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&family=Noto+Sans+Devanagari:wght@400;700;900&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #050505; --panel: #111; --border: #333;
+    --accent: #3b82f6; --success: #22c55e; --text: #eee;
+    --font-hi: 'Noto Sans Devanagari', sans-serif;
+  }
+  
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Montserrat', sans-serif; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* --- WIZARD LAYOUT --- */
+  .nav-header { height: 60px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: #000; }
+  .step-indicator { font-size: 12px; font-weight: 700; color: #666; text-transform: uppercase; }
+  .step-indicator span.active { color: var(--accent); }
+
+  .wizard-content { flex: 1; position: relative; overflow: hidden; }
+  
+  .step-screen {
+    position: absolute; inset: 0; padding: 20px;
+    background: var(--bg); display: none; flex-direction: column;
+    overflow-y: auto;
+  }
+  .step-screen.active { display: flex; animation: fadeIn 0.3s ease; }
+
+  /* --- STEPS UI --- */
+  .input-group { margin-bottom: 20px; }
+  .label { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; margin-bottom: 8px; display: block; }
+  .field { width: 100%; background: #1a1a1a; border: 1px solid var(--border); color: white; padding: 12px; border-radius: 6px; font-family: inherit; font-size: 14px; }
+  .btn-row { display: flex; gap: 10px; margin-top: 20px; }
+  
+  .sync-zone { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .sync-word { font-size: 32px; font-weight: 800; font-family: var(--font-hi); text-align: center; margin-bottom: 30px; }
+  .tap-btn { width: 180px; height: 180px; border-radius: 50%; background: #111; border: 4px solid #333; color: white; font-size: 24px; font-weight: 900; cursor: pointer; transition: transform 0.1s; }
+  .tap-btn:active { transform: scale(0.95); border-color: var(--accent); }
+
+  .table-wrapper { flex: 1; overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: #0a0a0a; }
+  .chunk-row { display: grid; grid-template-columns: 0.5fr 3fr 1fr 1fr 1fr 1fr; gap: 10px; padding: 10px; border-bottom: 1px solid #222; align-items: center; }
+  .chunk-header { background: #111; font-weight: 700; font-size: 11px; text-transform: uppercase; color: #666; position: sticky; top: 0; z-index: 10; }
+  .chunk-row:hover { background: #111; }
+  .mini-input { background: #000; border: 1px solid #333; color: #ccc; padding: 5px; border-radius: 4px; width: 100%; font-size: 12px; }
+  .color-input { height: 30px; padding: 0; width: 100%; cursor: pointer; border: 1px solid #444; background: none; }
+
+  /* --- STUDIO CANVAS --- */
+  .studio-container { flex: 1; display: flex; flex-direction: column; height: 100%; }
+  .canvas-area { flex: 1; background: #080808; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+  
+  .stage-frame { 
+    position: relative; 
+    background: #000; /* Base Black */
+    box-shadow: 0 0 0 1px #333; overflow: hidden; transition: all 0.3s ease; 
+  }
+  .ratio-9-16 { height: 90%; aspect-ratio: 9/16; }
+  .ratio-16-9 { width: 95%; aspect-ratio: 16/9; }
+
+  /* LAYERS */
+  #bgLayer {
+    position: absolute; inset: 0; z-index: 0;
+    opacity: 0.6; /* Default Opacity lowered for visibility */
+    transition: opacity 0.2s;
+  }
+  #fxLayer { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen; z-index: 5; }
+  
+  .smart-text {
+    position: absolute; transform: translate(-50%, -50%);
+    text-align: center; white-space: pre-wrap; z-index: 20; padding: 20px;
+    font-family: var(--font-hi); font-weight: 800; line-height: 1.4;
+    width: max-content; max-width: 90%;
+    /* Strong Shadow for readability */
+    text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.5); 
+    backface-visibility: hidden;
+  }
+
+  /* Animations */
+  .anim-fade { animation: fadeIn 0.6s ease forwards; }
+  .anim-pop { animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+  .anim-slide { animation: slideUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+  .anim-zoom { animation: zoomSlow 6s linear forwards; opacity: 0; animation-name: fadeIn, zoomSlow; }
+  .anim-glitch { animation: glitch 0.4s steps(5) both; }
+  
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes popIn { from { opacity: 0; transform: translate(-50%, -40%) scale(0.5); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+  @keyframes slideUp { from { opacity: 0; transform: translate(-50%, 0%); } to { opacity: 1; transform: translate(-50%, -50%); } }
+  @keyframes zoomSlow { from { transform: translate(-50%, -50%) scale(1); } to { transform: translate(-50%, -50%) scale(1.15); } }
+  @keyframes glitch { 0% { transform: translate(-50%,-50%) skew(0deg); } 20% { transform: translate(-52%,-50%) skew(-10deg); } 40% { transform: translate(-48%,-50%) skew(10deg); } 100% { transform: translate(-50%,-50%) skew(0deg); } }
+
+  /* Controls */
+  .studio-controls { height: auto; background: #111; border-top: 1px solid #333; display: flex; flex-direction: column; }
+  .deck-tabs { display: flex; background: #000; border-bottom: 1px solid #222; }
+  .deck-tab { flex: 1; padding: 12px; text-align: center; font-size: 11px; font-weight: 700; color: #666; cursor: pointer; text-transform: uppercase; }
+  .deck-tab.active { color: white; background: #181818; border-top: 2px solid var(--accent); }
+  .control-body { padding: 15px; display: none; }
+  .control-body.active { display: block; }
+
+  .playback-bar { height: 50px; display: flex; align-items: center; padding: 0 15px; border-bottom: 1px solid #222; }
+  .playback-btn { width: 32px; height: 32px; border-radius: 50%; background: white; border: none; font-size: 14px; cursor: pointer; display:grid; place-items:center; color:black; }
+  .timeline-scrubber { flex: 1; margin: 0 15px; height: 4px; background: #333; position: relative; cursor: pointer; border-radius: 2px; }
+  .progress-fill { height: 100%; background: var(--accent); width: 0%; border-radius: 2px; }
+
+  .swatch-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 15px; }
+  .bg-swatch { aspect-ratio: 16/9; border-radius: 4px; cursor: pointer; border: 1px solid #444; position: relative; }
+  .bg-swatch.active { border: 2px solid white; box-shadow: 0 0 10px rgba(255,255,255,0.3); }
+
+  .nav-footer { height: 60px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: #000; }
+  .btn { padding: 12px 24px; border-radius: 6px; border: none; font-weight: 700; cursor: pointer; font-size: 14px; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-secondary { background: #222; color: #ccc; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 600px) {
+    .chunk-row { grid-template-columns: 30px 1fr; gap: 5px; border-bottom: 2px solid #333; padding-bottom: 15px; }
+    .chunk-row > *:nth-child(n+3) { grid-column: span 2; }
+    .chunk-header { display: none; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="nav-header">
+    <div style="font-weight:900; color:white;">StorySync Studio</div>
+    <div class="step-indicator">
+      <span id="ind1" class="active">1. Input</span> > 
+      <span id="ind2">2. Sync</span> > 
+      <span id="ind3">3. Edit</span> > 
+      <span id="ind4">4. Design</span>
+    </div>
+  </div>
+
+  <div class="wizard-content">
+
+    <div id="step1" class="step-screen active">
+      <div class="input-group">
+        <label class="label">Story Script</label>
+        <textarea id="inpScript" class="field" style="height: 150px;">ब्रह्मांड की रचना एक महाविस्फोट से हुई। समय और स्थान का जन्म हुआ।</textarea>
+      </div>
+      <div class="input-group">
+        <label class="label">Voiceover Audio</label>
+        <input type="file" id="inpAudio" accept="audio/*" class="field">
+      </div>
+      <div class="input-group">
+        <label class="label">Sync Method</label>
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="APP.startAutoSync()" style="flex:1; border:1px solid #333">⚡ Auto Sync</button>
+          <button class="btn btn-secondary" onclick="APP.startManualSync()" style="flex:1; border:1px solid #333">👆 Manual Tap</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="step2" class="step-screen">
+      <div class="sync-zone">
+        <div id="syncDisplay" class="sync-word">Press Start</div>
+        <button id="btnStartRecord" class="btn btn-primary" onclick="APP.recordSession()" style="margin-bottom:20px">▶ Start Recording</button>
+        <button id="btnTap" class="tap-btn hidden">TAP</button>
+      </div>
+    </div>
+
+    <div id="step3" class="step-screen" style="padding:0;">
+      <div style="padding:10px; background:#111; border-bottom:1px solid #333; color:#888; font-size:12px;">Review and edit your chunks.</div>
+      <div class="table-wrapper">
+        <div class="chunk-row chunk-header">
+          <div>#</div> <div>Text</div> <div>Color</div> <div>Anim</div> <div>Size</div> <div>Pos (X,Y)</div>
+        </div>
+        <div id="editorGrid"></div>
+      </div>
+    </div>
+
+    <div id="step4" class="step-screen" style="padding:0;">
+      <div class="studio-container">
+        
+        <div class="canvas-area">
+          <div id="stage" class="stage-frame ratio-9-16">
+            <div id="bgLayer"></div>
+            <canvas id="fxLayer"></canvas>
+            <div id="smartText" class="smart-text"></div>
+          </div>
+        </div>
+
+        <div class="studio-controls">
+          <div class="playback-bar">
+            <button id="playBtn" class="playback-btn" onclick="APP.togglePlay()">▶</button>
+            <div class="timeline-scrubber" id="scrubber"><div class="progress-fill" id="progressBar"></div></div>
+            <select id="ratioSelect" onchange="APP.setRatio(this.value)" class="mini-input" style="width:80px;">
+              <option value="ratio-9-16">9:16</option>
+              <option value="ratio-16-9">16:9</option>
+            </select>
+          </div>
+
+          <div class="deck-tabs">
+            <div class="deck-tab active" onclick="UI.tab('global')">Global Design</div>
+          </div>
+
+          <div id="panel-global" class="control-body active">
+            
+            <div style="display:flex; gap:20px;">
+              <div style="flex:1">
+                 <div class="label">Background Brightness / Opacity</div>
+                 <input type="range" min="0" max="100" value="60" style="width:100%" oninput="APP.setBgOpacity(this.value)">
+              </div>
+            </div>
+
+            <div class="label" style="margin-top:15px">Presets</div>
+            <div class="swatch-grid" id="bgContainer"></div>
+
+            <div class="label" style="border-top:1px solid #333; padding-top:10px; margin-top:10px;">Custom Gradient</div>
+            <div style="display:flex; gap:10px; margin-bottom:10px; align-items:center;">
+              <div style="flex:1">
+                 <div class="label" style="margin-bottom:2px">Start</div>
+                 <input type="color" id="customStart" class="color-input" value="#000000" oninput="APP.setCustomGradient()">
+              </div>
+              <div style="flex:1">
+                 <div class="label" style="margin-bottom:2px">End</div>
+                 <input type="color" id="customEnd" class="color-input" value="#1a1a1a" oninput="APP.setCustomGradient()">
+              </div>
+              <div style="flex:1">
+                 <div class="label" style="margin-bottom:2px">Direction</div>
+                 <select id="customDir" class="mini-input" onchange="APP.setCustomGradient()" style="height:30px;">
+                    <option value="to bottom">↓ Down</option>
+                    <option value="to right">→ Right</option>
+                    <option value="135deg">↘ Diag</option>
+                    <option value="circle">⚪ Radial</option>
+                 </select>
+              </div>
+            </div>
+
+            <div class="label" style="border-top:1px solid #333; padding-top:10px;">Particles</div>
+            <div class="btn-row" style="margin-top:5px; gap:5px;">
+              <button class="btn btn-secondary" style="flex:1; padding:8px; font-size:11px;" onclick="APP.setParticle('stars')">✨ Stars</button>
+              <button class="btn btn-secondary" style="flex:1; padding:8px; font-size:11px;" onclick="APP.setParticle('bokeh')">🔵 Bokeh</button>
+              <button class="btn btn-secondary" style="flex:1; padding:8px; font-size:11px;" onclick="APP.setParticle('embers')">🔥 Embers</button>
+              <button class="btn btn-secondary" style="flex:1; padding:8px; font-size:11px;" onclick="APP.setParticle('snow')">❄️ Snow</button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="nav-footer">
+    <button id="btnBack" class="btn btn-secondary" onclick="APP.nav(-1)" disabled>← Back</button>
+    <div id="statusText" style="font-size:12px; color:#666;">Step 1 of 4</div>
+    <button id="btnNext" class="btn btn-primary" onclick="APP.nav(1)">Next →</button>
+  </div>
+
+<script>
+/** STORYSYNC ULTIMATE **/
+const APP = (() => {
+  const state = {
+    step: 1, script: "", audioCtx: null, audioBuffer: null,
+    chunks: [], duration: 0, isPlaying: false, startTime: 0, pausedAt: 0, audioSource: null,
+    global: { bgIndex: 0, particle: 'stars' }
+  };
+
+  const CONST = {
+    colors: ['#FFFFFF', '#F43F5E', '#3B82F6', '#10B981', '#F59E0B', '#A78BFA'],
+    anims: ['anim-fade', 'anim-pop', 'anim-slide', 'anim-zoom', 'anim-glitch'],
+    gradients: [
+      { name: "Midnight", val: "linear-gradient(to bottom, #000000, #1a1a1a)" },
+      { name: "Sunset", val: "linear-gradient(135deg, #1e1e1e 0%, #3a1c71 100%)" },
+      { name: "Cyber", val: "linear-gradient(135deg, #0f0c29, #302b63, #24243e)" },
+      { name: "Fire", val: "linear-gradient(135deg, #200122, #6f0000)" },
+      { name: "Ocean", val: "linear-gradient(135deg, #000000, #001f3f)" },
+      { name: "Forest", val: "linear-gradient(135deg, #000000, #0f2027)" },
+      { name: "Royal", val: "linear-gradient(135deg, #141E30, #243B55)" },
+      { name: "Purple", val: "linear-gradient(135deg, #2d0036, #000000)" }
+    ]
+  };
+
+  function nav(dir) {
+    const newStep = state.step + dir;
+    if (newStep < 1 || newStep > 4) return;
+    if (state.step === 1 && dir === 1) {
+       if (!document.getElementById('inpScript').value || !document.getElementById('inpAudio').files[0]) return alert("Data missing.");
+       if(state.chunks.length === 0) return alert("Select sync method.");
+    }
+    state.step = newStep; updateUI();
+    if (state.step === 3) renderTable();
+    if (state.step === 4) {
+      PHYSICS.resize(); PHYSICS.switchMode(state.global.particle); applyGlobalLook(); renderLoop();
+    } else stopAudio();
+  }
+
+  function updateUI() {
+    document.querySelectorAll('.step-screen').forEach((el, i) => el.classList.toggle('active', (i + 1) === state.step));
+    document.querySelectorAll('.step-indicator span').forEach((el, i) => el.classList.toggle('active', (i + 1) === state.step));
+    document.getElementById('btnBack').disabled = state.step === 1;
+    document.getElementById('btnNext').disabled = state.step === 4;
+    document.getElementById('btnNext').style.display = state.step === 2 ? 'none' : 'block';
+    document.getElementById('statusText').innerText = `Step ${state.step} of 4`;
+  }
+
+  async function loadAudio() {
+    if(state.audioBuffer) return true;
+    const file = document.getElementById('inpAudio').files[0];
+    if(!file) return false;
+    state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ab = await file.arrayBuffer();
+    state.audioBuffer = await state.audioCtx.decodeAudioData(ab);
+    state.duration = state.audioBuffer.duration;
+    return true;
+  }
+
+  function generateChunks(text) {
+    const raw = text.trim().split(/\s+/); state.chunks = [];
+    state.global.bgIndex = Math.floor(Math.random() * CONST.gradients.length);
+    state.global.particle = ['stars','bokeh','embers','snow'][Math.floor(Math.random() * 4)];
+    for(let i=0; i<raw.length; i+=3) {
+      const phrase = raw.slice(i, i+3).join(" ");
+      state.chunks.push({
+        id: i, text: phrase, start: 0, end: 0,
+        style: { 
+          color: CONST.colors[Math.floor(Math.random() * CONST.colors.length)], 
+          size: Math.floor(Math.random() * 20) + 35, 
+          anim: CONST.anims[Math.floor(Math.random() * CONST.anims.length)], 
+          x: 50 + (Math.random() * 4 - 2), y: 50 + (Math.random() * 6 - 3) 
+        }
+      });
+    }
+  }
+
+  async function startAutoSync() {
+    if(!await loadAudio()) return alert("Audio needed.");
+    generateChunks(document.getElementById('inpScript').value);
+    const totalChars = state.chunks.reduce((acc, c) => acc + c.text.length, 0);
+    let currentTime = 0;
+    state.chunks.forEach(c => { c.start = currentTime; c.end = currentTime + (c.text.length/totalChars)*state.duration; currentTime = c.end; });
+    state.step = 3; nav(0);
+  }
+
+  async function startManualSync() {
+    if(!await loadAudio()) return alert("Audio needed.");
+    generateChunks(document.getElementById('inpScript').value);
+    state.step = 2; nav(0);
+  }
+
+  let syncIdx = 0, recStart = 0;
+  function recordSession() {
+    if(state.audioCtx.state === 'suspended') state.audioCtx.resume();
+    playAudio(0); recStart = state.audioCtx.currentTime; syncIdx = 0;
+    state.chunks[0].start = 0;
+    document.getElementById('syncDisplay').innerText = state.chunks[0].text;
+    document.getElementById('btnStartRecord').classList.add('hidden');
+    document.getElementById('btnTap').classList.remove('hidden');
+    document.getElementById('btnNext').style.display = 'none';
+  }
+  document.getElementById('btnTap').addEventListener('mousedown', (e) => {
+    e.preventDefault(); const now = state.audioCtx.currentTime - recStart;
+    if (syncIdx < state.chunks.length) state.chunks[syncIdx].end = now;
+    syncIdx++;
+    if(syncIdx < state.chunks.length) {
+      state.chunks[syncIdx].start = now; document.getElementById('syncDisplay').innerText = state.chunks[syncIdx].text;
+    } else {
+      stopAudio(); state.chunks[state.chunks.length-1].end = state.duration;
+      document.getElementById('syncDisplay').innerText = "Done!";
+      document.getElementById('btnTap').classList.add('hidden');
+      document.getElementById('btnNext').style.display = 'block';
+    }
+  });
+
+  function renderTable() {
+    const grid = document.getElementById('editorGrid'); grid.innerHTML = '';
+    state.chunks.forEach((c, idx) => {
+      const row = document.createElement('div'); row.className = 'chunk-row';
+      let animOpts = CONST.anims.map(a => `<option value="${a}" ${c.style.anim===a?'selected':''}>${a.replace('anim-','')}</option>`).join('');
+      row.innerHTML = `<div>${idx+1}</div><input type="text" class="mini-input" value="${c.text}" onchange="APP.edit(${idx}, 'text', this.value)"><input type="color" class="color-input" value="${c.style.color}" onchange="APP.edit(${idx}, 'color', this.value)"><select class="mini-input" onchange="APP.edit(${idx}, 'anim', this.value)">${animOpts}</select><input type="number" class="mini-input" value="${c.style.size}" onchange="APP.edit(${idx}, 'size', this.value)"><div style="display:flex; gap:2px"><input type="number" class="mini-input" placeholder="X" value="${Math.round(c.style.x)}" onchange="APP.edit(${idx}, 'x', this.value)"><input type="number" class="mini-input" placeholder="Y" value="${Math.round(c.style.y)}" onchange="APP.edit(${idx}, 'y', this.value)"></div>`;
+      grid.appendChild(row);
+    });
+  }
+  function edit(idx, p, v) { 
+    if(p==='text') state.chunks[idx].text=v; 
+    else if(p==='size'||p==='x'||p==='y') state.chunks[idx].style[p]=parseFloat(v); 
+    else state.chunks[idx].style[p]=v; 
+  }
+
+  // --- STUDIO ---
+  function applyGlobalLook() {
+    const container = document.getElementById('bgContainer'); container.innerHTML = '';
+    CONST.gradients.forEach((g, idx) => {
+      const el = document.createElement('div');
+      el.className = `bg-swatch ${idx === state.global.bgIndex ? 'active' : ''}`;
+      el.style.background = g.val;
+      el.onclick = () => {
+        state.global.bgIndex = idx;
+        document.getElementById('bgLayer').style.background = g.val;
+        document.querySelectorAll('.bg-swatch').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+      };
+      container.appendChild(el);
+    });
+    document.getElementById('bgLayer').style.background = CONST.gradients[state.global.bgIndex].val;
+  }
+
+  function setCustomGradient() {
+    const s = document.getElementById('customStart').value;
+    const e = document.getElementById('customEnd').value;
+    const d = document.getElementById('customDir').value;
+    const val = d === 'circle' ? `radial-gradient(circle at center, ${s}, ${e})` : `linear-gradient(${d}, ${s}, ${e})`;
+    document.getElementById('bgLayer').style.background = val;
+    document.querySelectorAll('.bg-swatch').forEach(el => el.classList.remove('active'));
+  }
+
+  function setBgOpacity(val) {
+    document.getElementById('bgLayer').style.opacity = val / 100;
+  }
+
+  function setParticle(type) { state.global.particle = type; PHYSICS.switchMode(type); }
+  
+  function playAudio(off) {
+    if(state.audioSource) try { state.audioSource.stop() } catch(e){}
+    state.audioSource = state.audioCtx.createBufferSource();
+    state.audioSource.buffer = state.audioBuffer;
+    state.audioSource.connect(state.audioCtx.destination);
+    state.audioSource.start(0, off);
+    state.startTime = state.audioCtx.currentTime - off;
+    state.isPlaying = true;
+  }
+  function stopAudio() {
+    if(state.audioSource) try { state.audioSource.stop() } catch(e){}
+    state.isPlaying = false;
+    if(state.audioCtx) state.pausedAt = state.audioCtx.currentTime - state.startTime;
+  }
+  function togglePlay() {
+    if(state.isPlaying) { stopAudio(); document.getElementById('playBtn').innerText = "▶"; }
+    else { if(state.pausedAt >= state.duration) state.pausedAt = 0; playAudio(state.pausedAt); document.getElementById('playBtn').innerText = "II"; }
+  }
+
+  function renderLoop() {
+    if(state.step !== 4) return;
+    if(state.isPlaying) {
+      const t = state.audioCtx.currentTime - state.startTime;
+      if(t >= state.duration) { stopAudio(); document.getElementById('playBtn').innerText = "▶"; }
+      else { updateStage(t); updateScrubber(t); }
+    } else updateStage(state.pausedAt);
+    PHYSICS.render(); requestAnimationFrame(renderLoop);
+  }
+
+  function updateStage(t) {
+    const el = document.getElementById('smartText');
+    const active = state.chunks.find(c => t >= c.start && t < c.end);
+    if(active) {
+       el.style.display = 'block'; el.innerText = active.text;
+       el.className = `smart-text ${active.style.anim}`;
+       el.style.color = active.style.color; el.style.fontSize = active.style.size + 'px';
+       el.style.left = active.style.x + '%'; el.style.top = active.style.y + '%';
+       el.style.textShadow = `0 2px 4px rgba(0,0,0,0.9), 0 0 20px ${active.style.color}80`;
+    } else el.style.display = 'none';
+  }
+  function updateScrubber(t) { document.getElementById('progressBar').style.width = (t/state.duration)*100 + '%'; }
+  document.getElementById('scrubber').onclick = (e) => {
+    const rect = e.target.getBoundingClientRect();
+    const time = ((e.clientX - rect.left) / rect.width) * state.duration;
+    stopAudio(); state.pausedAt = time; updateStage(time); updateScrubber(time);
+    document.getElementById('playBtn').innerText = "▶";
+  };
+  function setRatio(val) {
+    document.getElementById('stage').className = `stage-frame ${val}`;
+    setTimeout(PHYSICS.resize, 300);
+  }
+  return { nav, startAutoSync, startManualSync, recordSession, edit, togglePlay, setRatio, setParticle, setCustomGradient, setBgOpacity };
+})();
+
+/** PARTICLE ENGINE **/
+const PHYSICS = (() => {
+  const cvs = document.getElementById('fxLayer'); const ctx = cvs.getContext('2d');
+  let particles = [], w, h, mode = 'stars';
+  function resize() {
+    const r = document.getElementById('stage').getBoundingClientRect();
+    w = r.width; h = r.height; cvs.width = w; cvs.height = h; init();
+  }
+  function switchMode(m) { mode = m; init(); }
+  function init() {
+    particles = []; const count = mode==='bokeh'?20:60;
+    for(let i=0; i<count; i++) {
+      let p = { x: Math.random()*w, y: Math.random()*h };
+      if(mode==='stars') { p.s=Math.random()*2; p.a=Math.random(); p.vy=(Math.random()-0.5)*0.2; }
+      else if(mode==='bokeh') { p.s=Math.random()*30+10; p.a=Math.random()*0.1; p.vx=(Math.random()-0.5)*0.5; p.vy=(Math.random()-0.5)*0.5; }
+      else if(mode==='embers') { p.s=Math.random()*3; p.a=Math.random(); p.vy=-Math.random()-0.2; p.color=Math.random()>0.5?'#ff4d4d':'#ff9f43'; }
+      else if(mode==='snow') { p.s=Math.random()*3; p.a=Math.random()*0.8; p.vy=Math.random()+0.5; p.vx=(Math.random()-0.5)*0.2; }
+      particles.push(p);
+    }
+  }
+  function render() {
+    ctx.clearRect(0,0,w,h);
+    particles.forEach(p => {
+      p.x += p.vx||0; p.y += p.vy||0;
+      if(p.y<-50) p.y=h+50; if(p.y>h+50) p.y=-50; if(p.x<-50) p.x=w+50; if(p.x>w+50) p.x=-50;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, Math.PI*2);
+      ctx.fillStyle = mode==='embers'?p.color:`rgba(255,255,255,${p.a})`; ctx.fill();
+    });
+  }
+  return { resize, render, switchMode };
+})();
+
+const UI = { tab: (n) => {
+  document.querySelectorAll('.control-body').forEach(p=>p.classList.remove('active'));
+  document.getElementById('panel-'+n).classList.add('active');
+  document.querySelectorAll('.deck-tab').forEach(t=>t.classList.remove('active'));
+  event.target.classList.add('active');
+}};
+</script>
+</body>
+</html>
